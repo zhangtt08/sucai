@@ -1,0 +1,17 @@
+appId: com.sucai.app
+productName: 素材下载器
+directories:
+  output: release
+  buildResources: resources
+files:
+  - dist/**/*
+  - electron/**/*
+  - resources/**/*
+  - package.json
+
+win:
+  icon: resources/app-icon.ico
+  artifactName: ${productName}-${version}.${ext}
+  target:
+    - target: portable
+      arch: [x64]
