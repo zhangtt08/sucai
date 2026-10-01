@@ -12,6 +12,7 @@ export interface AssetItem {
   thumbnailUrl: string;
   previewUrl: string;
   downloadUrl: string;
+  pageUrl?: string;
   fileExtension?: string;
   width: number;
   height: number;
@@ -21,14 +22,59 @@ export interface AssetItem {
   license: string;
 }
 
+export type ErrorFix = 'settings' | 'wait' | 'retry' | 'network' | 'switch_source' | 'upgrade' | '';
+
+export interface ClassifiedError {
+  kind: string;
+  label: string;
+  message: string;
+  hint: string;
+  fix: ErrorFix;
+  retryable?: boolean;
+  status?: number;
+  source?: string;
+}
+
+export type SourceStatus = 'searching' | 'ok' | 'empty' | 'failed' | 'unsupported';
+
+export interface SourceGroup {
+  name: string;
+  displayName: string;
+  status: SourceStatus;
+  count: number;
+  rawCount?: number;
+  ms: number;
+  error: ClassifiedError | null;
+  needsKey: boolean;
+  supportedTypes: string[];
+}
+
+export type TaskStatus = 'queued' | 'downloading' | 'completed' | 'failed' | 'cancelled';
+
 export interface DownloadTask {
   id: string;
+  batchId: string;
   item: AssetItem;
-  status: 'pending' | 'downloading' | 'completed' | 'failed';
+  status: TaskStatus;
   progress: number;
   speed: string;
   filePath?: string;
+  fileName?: string;
+  bytes?: number;
   error?: string;
+}
+
+export interface DownloadReceipt {
+  filePath: string;
+  fileName: string;
+  bytes: number;
+  source: string;
+  sourceId: string;
+  title: string;
+  license: string;
+  ms: number;
+  at?: string;
+  exists?: boolean;
 }
 
 export interface PluginInfo {
@@ -36,6 +82,22 @@ export interface PluginInfo {
   displayName: string;
   supportedTypes: string[];
   configured: boolean;
+  needsKey: boolean;
+  keyHint: string;
+  keyUrl: string;
+  note: string;
+  supportsById: boolean;
+}
+
+export interface SourceProbe {
+  name: string;
+  displayName: string;
+  status: 'ok' | 'empty' | 'failed' | 'needs_key' | 'unknown';
+  configured: boolean;
+  count: number;
+  ms: number;
+  error: ClassifiedError | null;
+  sample: { id: string; title: string; thumbnailUrl: string }[];
 }
 
 export interface AppSettings {
@@ -43,9 +105,21 @@ export interface AppSettings {
   downloadDir: string;
   enabledSources: string[];
   theme: 'light' | 'dark';
+  maxConcurrentDownloads: number;
+  filenameTemplate: string;
+  subfolderTemplate: string;
+  dedupe: boolean;
 }
 
-export interface DownloadProgress {
-  taskId: string;
-  progress: { percent: number; speed: string };
+export interface SearchResponse {
+  items: AssetItem[];
+  groups: SourceGroup[];
+  warnings: string[];
+  deduped: number;
+  allFailed: boolean;
+  noSources?: boolean;
+  totalMs: number;
+  query: string;
+  page: number;
+  perPage: number;
 }

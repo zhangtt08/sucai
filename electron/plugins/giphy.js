@@ -1,5 +1,6 @@
 const { SourcePlugin } = require('./base');
 const { downloadFile } = require('./utils');
+const { jsonFetch } = require('./http.cjs');
 
 class GiphyPlugin extends SourcePlugin {
   get name() { return 'giphy'; }
@@ -11,20 +12,15 @@ class GiphyPlugin extends SourcePlugin {
 
   async search(query, mediaType, page = 1, perPage = 20) {
     if (mediaType === 'video') return [];
+    const size = Math.max(1, Math.min(perPage, 50));
     const params = new URLSearchParams({
       api_key: this.key,
       q: query,
-      limit: String(Math.min(perPage, 50)),
-      offset: String((page - 1) * perPage),
+      limit: String(size),
+      offset: String((Math.max(1, page) - 1) * size),
       rating: 'g',
     });
-    const u = `https://api.giphy.com/v1/gifs/search?${params.toString()}`;
-    const r = await fetch(u);
-    if (!r.ok) {
-      const detail = r.status === 403 ? 'API Key 无效或过期' : `HTTP ${r.status}`;
-      throw new Error(`请求失败（${detail}）`);
-    }
-    const d = await r.json();
+    const d = await jsonFetch(`https://api.giphy.com/v1/gifs/search?${params.toString()}`, { source: this.name });
     return (d.data || []).map((g) => {
       const original = g.images?.original || {};
       return {
@@ -34,6 +30,7 @@ class GiphyPlugin extends SourcePlugin {
         author: g.user?.display_name || g.username || '', authorUrl: g.user?.profile_url || '',
         thumbnailUrl: g.images?.fixed_width?.url || '', previewUrl: g.images?.fixed_width?.url || '',
         downloadUrl: original.url || g.images?.downsized_medium?.url || '',
+        pageUrl: g.url || '',
         width: Number(original.width) || 0, height: Number(original.height) || 0, fileSize: 0,
         tags: [],
         license: 'Giphy 授权',

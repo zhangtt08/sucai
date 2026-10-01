@@ -1,5 +1,6 @@
 const { SourcePlugin } = require('./base');
 const { downloadFile } = require('./utils');
+const { jsonFetch } = require('./http.cjs');
 
 class PixabayPlugin extends SourcePlugin {
   get name() { return 'pixabay'; }
@@ -28,9 +29,7 @@ class PixabayPlugin extends SourcePlugin {
   }
 
   async fetchJson(url) {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`请求失败（HTTP ${response.status}）`);
-    return response.json();
+    return jsonFetch(url, { source: this.name });
   }
 
   async fetchImages(url) {
@@ -46,6 +45,7 @@ class PixabayPlugin extends SourcePlugin {
       thumbnailUrl: item.previewURL || item.webformatURL || '',
       previewUrl: item.largeImageURL || item.webformatURL || '',
       downloadUrl: item.largeImageURL || item.webformatURL || '',
+      pageUrl: item.pageURL || '',
       width: item.imageWidth || item.webformatWidth || 0,
       height: item.imageHeight || item.webformatHeight || 0,
       fileSize: item.imageSize || 0,
@@ -72,6 +72,7 @@ class PixabayPlugin extends SourcePlugin {
         thumbnailUrl: thumbnail,
         previewUrl: thumbnail,
         downloadUrl: video.url,
+        pageUrl: item.pageURL || '',
         width: video.width || 0,
         height: video.height || 0,
         duration: item.duration || 0,

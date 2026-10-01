@@ -1,6 +1,12 @@
 node_modules/
 dist/
 release/
+.vite/
 *.log
 *.tsbuildinfo
+*.part
 .DS_Store
+Thumbs.db
+desktop.ini
+*.lnk
+agent/.endpoint

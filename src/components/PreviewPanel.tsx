@@ -79,11 +79,26 @@ export function PreviewPanel({
             <dt>尺寸</dt>
             <dd className="tabular-nums">{item.width || '—'} × {item.height || '—'}</dd>
           </div>
+          <div>
+            <dt>平台标注大小</dt>
+            <dd className="tabular-nums">{item.fileSize ? `${(item.fileSize / 1048576).toFixed(2)} MB` : '来源未提供'}</dd>
+          </div>
+          <div>
+            <dt>素材 id</dt>
+            <dd className="tabular-nums">{item.sourceId}</dd>
+          </div>
           <div className="col-span-2">
             <dt>使用许可</dt>
             <dd>{item.license || '请查看来源平台条款'}</dd>
           </div>
         </dl>
+
+        {item.pageUrl && (
+          <a className="button-secondary w-full justify-center" href={item.pageUrl} rel="noreferrer" target="_blank">
+            <ExternalLinkIcon className="size-4" />
+            在来源页核对授权
+          </a>
+        )}
 
         {item.tags?.length > 0 && (
           <div>

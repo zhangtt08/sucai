@@ -1,5 +1,6 @@
 const { SourcePlugin } = require('./base');
 const { downloadFile } = require('./utils');
+const { jsonFetch } = require('./http.cjs');
 
 const FIELDS = 'id,title,artist_title,image_id,date_display,medium_display,is_public_domain,thumbnail';
 
@@ -7,6 +8,7 @@ class ArticPlugin extends SourcePlugin {
   get name() { return 'artic'; }
   get displayName() { return '芝加哥艺术馆'; }
   get supportedTypes() { return ['image']; }
+  get supportsById() { return true; }
 
   isConfigured() { return true; }
 
@@ -14,35 +16,45 @@ class ArticPlugin extends SourcePlugin {
     if (mediaType === 'video') return [];
     const params = new URLSearchParams({
       q: query,
-      limit: String(Math.min(perPage, 25)),
-      page: String(page),
+      limit: String(Math.max(1, Math.min(perPage, 25))),
+      page: String(Math.max(1, page)),
       fields: FIELDS,
     });
-    const u = `https://api.artic.edu/api/v1/artworks/search?${params.toString()}`;
-    const r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36' } });
-    if (!r.ok) throw new Error(`请求失败（HTTP ${r.status}）`);
-    const d = await r.json();
+    const d = await jsonFetch(`https://api.artic.edu/api/v1/artworks/search?${params.toString()}`, { source: this.name });
     return (d.data || []).flatMap((a) => {
-      if (!a.image_id) return [];
-      return [{
-        source: this.name, sourceId: String(a.id), mediaType: 'image',
-        title: a.title || '未命名作品',
-        description: [a.medium_display, a.date_display].filter(Boolean).join(' · '),
-        author: a.artist_title || '佚名',
-        authorUrl: a.artist_title ? `https://www.artic.edu/artists?search=${encodeURIComponent(a.artist_title)}` : '',
-        thumbnailUrl: `https://www.artic.edu/iiif/2/${a.image_id}/full/400,/0/default.jpg`,
-        previewUrl: `https://www.artic.edu/iiif/2/${a.image_id}/full/843,/0/default.jpg`,
-        downloadUrl: `https://www.artic.edu/iiif/2/${a.image_id}/full/1686,/0/default.jpg`,
-        width: 0, height: 0, fileSize: 0,
-        tags: [],
-        license: a.is_public_domain ? '公共领域（CC0）' : '芝加哥艺术馆授权展示',
-      }];
+      const mapped = mapArticWork(a);
+      return mapped ? [mapped] : [];
     });
+  }
+
+  async fetchById(id) {
+    const d = await jsonFetch(`https://api.artic.edu/api/v1/artworks/${encodeURIComponent(String(id))}`, { source: this.name });
+    const mapped = mapArticWork(d.data);
+    if (!mapped) throw new Error(`作品 ${id} 没有公开可用的图像`);
+    return mapped;
   }
 
   async download(item, destPath, onProgress) {
     return downloadFile(item.downloadUrl, destPath, onProgress);
   }
+}
+
+function mapArticWork(a) {
+  if (!a || !a.image_id) return null;
+  return {
+    source: 'artic', sourceId: String(a.id), mediaType: 'image',
+    title: a.title || '未命名作品',
+    description: [a.medium_display, a.date_display].filter(Boolean).join(' · '),
+    author: a.artist_title || '佚名',
+    authorUrl: a.artist_title ? `https://www.artic.edu/artists?search=${encodeURIComponent(a.artist_title)}` : '',
+    thumbnailUrl: `https://www.artic.edu/iiif/2/${a.image_id}/full/400,/0/default.jpg`,
+    previewUrl: `https://www.artic.edu/iiif/2/${a.image_id}/full/843,/0/default.jpg`,
+    downloadUrl: `https://www.artic.edu/iiif/2/${a.image_id}/full/1686,/0/default.jpg`,
+    pageUrl: `https://www.artic.edu/artworks/${a.id}`,
+    width: 0, height: 0, fileSize: 0,
+    tags: [],
+    license: a.is_public_domain ? '公共领域（CC0）' : '芝加哥艺术馆授权展示',
+  };
 }
 
 module.exports = { ArticPlugin };

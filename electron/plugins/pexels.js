@@ -1,5 +1,6 @@
 const { SourcePlugin } = require('./base');
 const { downloadFile } = require('./utils');
+const { jsonFetch } = require('./http.cjs');
 
 class PexelsPlugin extends SourcePlugin {
   get name() { return 'pexels'; }
@@ -14,15 +15,14 @@ class PexelsPlugin extends SourcePlugin {
     if (mediaType === 'all' || mediaType === 'image') {
       const u = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&page=${page}&per_page=${perPage}`;
       tasks.push((async () => {
-        const r = await fetch(u, { headers: { 'Authorization': this.key } });
-        if (!r.ok) throw new Error(`图片请求失败（HTTP ${r.status}）`);
-        const d = await r.json();
+        const d = await jsonFetch(u, { headers: { Authorization: this.key }, source: this.name });
         return (d.photos || []).map((p) => ({
           source: this.name, sourceId: String(p.id), mediaType: 'image',
           title: p.alt || '未命名图片', description: '',
           author: p.photographer || '', authorUrl: p.photographer_url || '',
           thumbnailUrl: p.src?.tiny, previewUrl: p.src?.large,
           downloadUrl: p.src?.original,
+          pageUrl: p.url || '',
           width: p.width || 0, height: p.height || 0, fileSize: 0,
           tags: [], license: 'Pexels License',
         }));
@@ -31,9 +31,7 @@ class PexelsPlugin extends SourcePlugin {
     if (mediaType === 'all' || mediaType === 'video') {
       const u = `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&page=${page}&per_page=${perPage}`;
       tasks.push((async () => {
-        const r = await fetch(u, { headers: { 'Authorization': this.key } });
-        if (!r.ok) throw new Error(`视频请求失败（HTTP ${r.status}）`);
-        const d = await r.json();
+        const d = await jsonFetch(u, { headers: { Authorization: this.key }, source: this.name });
         return (d.videos || []).map((v) => {
           const files = v.video_files || [];
           const best = files
@@ -45,7 +43,8 @@ class PexelsPlugin extends SourcePlugin {
             author: v.user?.name || '', authorUrl: v.user?.url || '',
             thumbnailUrl: v.image || '', previewUrl: v.image || '',
             downloadUrl: best?.link || '',
-            width: v.width || 0, height: v.height || 0, duration: v.duration || 0, fileSize: 0,
+            pageUrl: v.url || '',
+            width: v.width || 0, height: v.height || 0, duration: v.duration || 0, fileSize: best?.size || 0,
             tags: [], license: 'Pexels License',
           };
         }).filter((item) => item.downloadUrl);

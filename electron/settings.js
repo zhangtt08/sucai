@@ -1,50 +1,22 @@
-const fs = require('fs');
-const path = require('path');
+// 主进程侧的设置入口：只提供 Electron 的 userData 位置，读写逻辑全在
+// core/settings-store.cjs（Agent 无界面时读同一份，不会再有两套默认值）。
 const { app } = require('electron');
+const store = require('./core/settings-store.cjs');
 
-const FILE = path.join(app.getPath('userData'), 'settings.json');
+function userDataDir() {
+  return app.getPath('userData');
+}
 
-const DEFAULTS = {
-  apiKeys: { unsplash: '', pexels: '', pixabay: '', giphy: '', flickr: '' },
-  downloadDir: path.join(app.getPath('downloads'), 'MediaDownloader'),
-  enabledSources: ['unsplash', 'pexels', 'pixabay', 'met', 'artic'],
-  theme: 'light',
-};
+function settingsFilePath() {
+  return require('path').join(userDataDir(), 'settings.json');
+}
 
 function loadSettings() {
-  try {
-    if (fs.existsSync(FILE)) {
-      const stored = JSON.parse(fs.readFileSync(FILE, 'utf-8'));
-      return {
-        ...DEFAULTS,
-        ...stored,
-        apiKeys: { ...DEFAULTS.apiKeys, ...(stored.apiKeys || {}) },
-      };
-    }
-  } catch (_) {}
-  return { ...DEFAULTS, apiKeys: { ...DEFAULTS.apiKeys } };
+  return store.loadSettings(settingsFilePath());
 }
 
 function saveSettings(settings) {
-  const sanitized = {
-    ...DEFAULTS,
-    ...settings,
-    apiKeys: {
-      unsplash: String(settings?.apiKeys?.unsplash || '').trim(),
-      pexels: String(settings?.apiKeys?.pexels || '').trim(),
-      pixabay: String(settings?.apiKeys?.pixabay || '').trim(),
-      giphy: String(settings?.apiKeys?.giphy || '').trim(),
-      flickr: String(settings?.apiKeys?.flickr || '').trim(),
-    },
-    downloadDir: String(settings?.downloadDir || DEFAULTS.downloadDir),
-    theme: settings?.theme === 'dark' ? 'dark' : 'light',
-  };
-  const dir = path.dirname(FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const tempFile = `${FILE}.tmp`;
-  fs.writeFileSync(tempFile, JSON.stringify(sanitized, null, 2), 'utf-8');
-  fs.renameSync(tempFile, FILE);
-  return sanitized;
+  return store.saveSettings(settings, settingsFilePath());
 }
 
-module.exports = { loadSettings, saveSettings };
+module.exports = { loadSettings, saveSettings, settingsFilePath, DEFAULTS: store.DEFAULTS, SOURCE_DEFS: store.SOURCE_DEFS };

@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import type { FormEvent } from 'react';
-import type { PluginInfo } from '../services/types';
+import type { PluginInfo, SourceGroup, SourceProbe } from '../services/types';
 import { ImageIcon, LayersIcon, SearchIcon, VideoIcon } from './Icons';
 
 interface Props {
@@ -10,7 +11,10 @@ interface Props {
   sources: string[];
   onSourcesChange: (value: string[]) => void;
   plugins: PluginInfo[];
-  onSearch: () => void;
+  groups: SourceGroup[];
+  probes: Record<string, SourceProbe>;
+  onProbe: (name: string) => void;
+  onSearch: (query: string) => void;
   loading: boolean;
 }
 
@@ -20,32 +24,43 @@ const mediaTypes = [
   { value: 'all', label: '全部', icon: LayersIcon },
 ];
 
+const statusTone: Record<string, string> = {
+  searching: '正在检索',
+  ok: '已返回',
+  empty: '无匹配',
+  failed: '失败',
+  unsupported: '不支持',
+};
+
 export function SearchBar({
-  query,
-  onQueryChange,
-  mediaType,
-  onMediaTypeChange,
-  sources,
-  onSourcesChange,
-  plugins,
-  onSearch,
-  loading,
+  query, onQueryChange, mediaType, onMediaTypeChange, sources, onSourcesChange,
+  plugins, groups, probes, onProbe, onSearch, loading,
 }: Props) {
+  const [probing, setProbing] = useState<string[]>([]);
+  const usable = plugins.filter((plugin) => plugin.configured);
+
   const toggleSource = (name: string) => {
     onSourcesChange(
-      sources.includes(name)
-        ? sources.filter((source) => source !== name)
-        : [...sources, name],
+      sources.includes(name) ? sources.filter((source) => source !== name) : [...sources, name],
     );
   };
 
+  const runProbe = async (name: string) => {
+    setProbing((previous) => [...previous, name]);
+    try {
+      await onProbe(name);
+    } finally {
+      setProbing((previous) => previous.filter((entry) => entry !== name));
+    }
+  };
+
   return (
-    <section className="search-deck" aria-label="素材搜索">
+    <section aria-label="素材搜索" className="search-deck">
       <form
         className="search-form"
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
-          onSearch();
+          onSearch(query);
         }}
       >
         <SearchIcon className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted" />
@@ -54,7 +69,7 @@ export function SearchBar({
           autoFocus
           className="search-input"
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="搜索照片、插画或视频…"
+          placeholder="一个关键词同时检索所有勾选的素材源（建议英文）…"
           type="search"
           value={query}
         />
@@ -69,7 +84,7 @@ export function SearchBar({
       </form>
 
       <div className="filter-row">
-        <div className="segmented-control" aria-label="素材类型">
+        <div aria-label="素材类型" className="segmented-control">
           {mediaTypes.map(({ value, label, icon: MediaIcon }) => (
             <button
               aria-pressed={mediaType === value}
@@ -85,28 +100,45 @@ export function SearchBar({
         </div>
 
         <span className="filter-divider" />
-        <span className="filter-label">素材源</span>
+        <span className="filter-label">
+          素材源 {sources.length}/{usable.length}
+        </span>
 
         <div className="flex flex-wrap items-center gap-2">
           {plugins.map((plugin) => {
             const selected = sources.includes(plugin.name);
+            const group = groups.find((entry) => entry.name === plugin.name);
+            const probe = probes[plugin.name];
+            const tone = group ? group.status : probe ? (probe.status === 'ok' ? 'probed' : 'probed-bad') : 'idle';
             return (
               <button
                 aria-pressed={selected}
-                className="source-chip"
+                className={`source-chip source-chip-${tone}`}
                 disabled={!plugin.configured}
                 key={plugin.name}
                 onClick={() => toggleSource(plugin.name)}
-                title={plugin.configured ? plugin.displayName : `${plugin.displayName} 尚未配置`}
+                onDoubleClick={() => plugin.configured && void runProbe(plugin.name)}
+                title={[
+                  plugin.note,
+                  plugin.configured ? '单击勾选/取消；双击联网探测' : `需要免费 API Key：${plugin.keyUrl}`,
+                  group ? `上次检索：${statusTone[group.status] || group.status}（${group.count} 项 / ${group.ms} ms）` : '',
+                  probe ? `探测结果：${probe.status === 'ok' ? `可用 ${probe.count} 条 / ${probe.ms} ms` : probe.error?.message || probe.status}` : '',
+                ].filter(Boolean).join('\n')}
                 type="button"
               >
                 <span className={`source-dot source-dot-${plugin.name}`} />
                 {plugin.displayName}
+                {plugin.supportedTypes.includes('video') && <span className="source-state">视频</span>}
                 {!plugin.configured && <span className="source-state">未配置</span>}
+                {group && group.status !== 'ok' && <span className="source-state">{statusTone[group.status]}</span>}
+                {probing.includes(plugin.name) && <span className="loading-ring" />}
               </button>
             );
           })}
         </div>
+        {sources.length === 0 && usable.length > 0 && (
+          <span className="text-[11px] text-danger">已取消全部素材源，搜索不会有任何结果</span>
+        )}
       </div>
     </section>
   );

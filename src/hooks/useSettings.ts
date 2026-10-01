@@ -4,7 +4,13 @@ import { getSettings, saveSettings } from '../services/ipc';
 
 const defaults: AppSettings = {
   apiKeys: { unsplash: '', pexels: '', pixabay: '', giphy: '', flickr: '' },
-  downloadDir: '', enabledSources: [], theme: 'light',
+  downloadDir: '',
+  enabledSources: [],
+  theme: 'light',
+  maxConcurrentDownloads: 2,
+  filenameTemplate: '{source}_{id}_{title}',
+  subfolderTemplate: '',
+  dedupe: true,
 };
 
 export function useSettings() {
@@ -14,15 +20,15 @@ export function useSettings() {
 
   useEffect(() => {
     getSettings()
-      .then((savedSettings) => setSettings(savedSettings))
+      .then((savedSettings) => setSettings({ ...defaults, ...savedSettings }))
       .catch((error: unknown) => setLoadError(error instanceof Error ? error.message : '设置读取失败'))
       .finally(() => setLoaded(true));
   }, []);
 
-  const updateAndSave = useCallback(async (s: AppSettings) => {
-    await saveSettings(s);
-    setSettings(s);
+  const updateAndSave = useCallback(async (next: AppSettings) => {
+    const saved = await saveSettings(next);
+    setSettings({ ...defaults, ...saved });
   }, []);
 
-  return { settings, loaded, loadError, updateAndSave };
+  return { settings, setSettings, loaded, loadError, updateAndSave };
 }

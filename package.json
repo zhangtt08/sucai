@@ -8,11 +8,16 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron . --dev\"",
     "package": "npm run build && electron-builder --win",
-    "agent-api": "node electron/agent-api.cjs"
+    "agent:serve": "node agent/server.mjs",
+    "agent:mcp": "node agent/mcp-server.mjs"
   },
   "license": "MIT",
+  "engines": {
+    "node": ">=20.19"
+  },
   "dependencies": {},
   "devDependencies": {
     "@types/react": "^19.0.0",

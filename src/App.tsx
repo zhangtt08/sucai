@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DownloadPanel } from './components/DownloadPanel';
-import { BrandMark, DownloadIcon, SettingsIcon, SparklesIcon } from './components/Icons';
+import { BrandMark, DownloadIcon, HistoryIcon, SettingsIcon, SparklesIcon } from './components/Icons';
 import { PreviewPanel } from './components/PreviewPanel';
+import { ResultStream } from './components/ResultStream';
 import { SearchBar } from './components/SearchBar';
 import { SettingsDialog } from './components/SettingsDialog';
-import { ThumbnailGrid } from './components/ThumbnailGrid';
 import { WindowControls } from './components/WindowControls';
 import { useDownload } from './hooks/useDownload';
 import { useSearch } from './hooks/useSearch';
 import { useSettings } from './hooks/useSettings';
+import { downloadLog } from './services/ipc';
 import type { AssetItem } from './services/types';
+
+const MAX_BATCH = 60;
 
 export default function App() {
   const search = useSearch();
@@ -20,6 +23,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showDownloads, setShowDownloads] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [history, setHistory] = useState({ totalLogged: 0, file: '' });
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     search.loadPlugins();
@@ -30,33 +35,55 @@ export default function App() {
     document.documentElement.style.colorScheme = settings.theme;
   }, [settings.theme]);
 
-  const needsSetup = loaded && search.plugins.length > 0 &&
-    !search.plugins.some((plugin) => plugin.configured);
+  const refreshHistory = useCallback(async () => {
+    try {
+      const result = await downloadLog({ limit: 1 });
+      setHistory({ totalLogged: result.totalLogged || 0, file: result.file || '' });
+    } catch { /* 历史读不到不影响主流程 */ }
+  }, []);
+
+  useEffect(() => { void refreshHistory(); }, [refreshHistory, download.stats.completed]);
+
+  const needsSetup = loaded && search.plugins.length > 0 && !search.plugins.some((plugin) => plugin.configured);
 
   const handleSelect = (item: AssetItem, multi: boolean) => {
-    if (!multi) {
-      setPreviewItem(item);
-      return;
-    }
+    if (!multi) { setPreviewItem(item); return; }
     setSelected((previous) => {
       const next = new Set(previous);
       const key = `${item.source}_${item.sourceId}`;
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };
 
-  const beginDownload = async (items: AssetItem[]) => {
-    if (items.length === 0) return false;
-    const started = await download.startDownload(items, settings.downloadDir);
+  const beginDownload = useCallback(async (items: AssetItem[], label = '') => {
+    const unique = [...new Map(items.map((item) => [`${item.source}_${item.sourceId}`, item])).values()];
+    if (!unique.length) { setNotice('没有可下载的素材'); return false; }
+    const batch = unique.slice(0, MAX_BATCH);
+    if (unique.length > batch.length) {
+      setNotice(`一次最多排队 ${MAX_BATCH} 项：本次开始 ${batch.length} 项，剩余 ${unique.length - batch.length} 项请再点一次`);
+    } else {
+      setNotice('');
+    }
+    const started = await download.startDownload(batch, settings.downloadDir, search.query);
     if (started) setShowDownloads(true);
     return started;
-  };
+  }, [download, settings.downloadDir, search.query]);
+
+  const selectedItems = useMemo(
+    () => search.items.filter((item) => selected.has(`${item.source}_${item.sourceId}`)),
+    [search.items, selected],
+  );
 
   const handleDownloadSelected = async () => {
-    const items = search.results.filter((item) => selected.has(`${item.source}_${item.sourceId}`));
-    if (await beginDownload(items)) setSelected(new Set());
+    if (await beginDownload(selectedItems, 'selected')) setSelected(new Set());
   };
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(''), 6000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   if (!loaded) {
     return (
@@ -67,7 +94,7 @@ export default function App() {
             <p className="text-sm font-semibold text-ink dark:text-white">正在准备素材工作台</p>
             <p className="mt-1 text-xs text-muted">读取设置与素材平台…</p>
           </div>
-          <span className="loading-ring" aria-label="正在加载" />
+          <span aria-label="正在加载" className="loading-ring" />
         </div>
       </div>
     );
@@ -75,26 +102,25 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="app-header drag-region" onDoubleClick={(e) => {
-        if ((e.target as HTMLElement).closest('button')) return;
-        void window.electron.windowControls.toggleMaximize();
-      }}>
+      <header
+        className="app-header drag-region"
+        onDoubleClick={(event) => {
+          if ((event.target as HTMLElement).closest('button')) return;
+          void window.electron?.windowControls.toggleMaximize();
+        }}
+      >
         <div className="flex min-w-0 items-center gap-3">
           <BrandMark />
           <div className="min-w-0">
-            <h1 className="text-balance text-[15px] font-semibold leading-5 text-ink dark:text-white">
-              素材下载器
-            </h1>
-            <p className="truncate text-[11px] text-muted">跨平台图片与视频素材工作台</p>
+            <h1 className="text-balance text-[15px] font-semibold leading-5 text-ink dark:text-white">素材下载器</h1>
+            <p className="truncate text-[11px] text-muted">
+              一次搜索，{search.plugins.filter((plugin) => plugin.configured).length} 个已配置素材源同时返回
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            className={`header-action ${showDownloads ? 'header-action-active' : ''}`}
-            onClick={() => setShowDownloads((visible) => !visible)}
-            type="button"
-          >
+          <button className={`header-action ${showDownloads ? 'header-action-active' : ''}`} onClick={() => setShowDownloads((visible) => !visible)} type="button">
             <DownloadIcon className="size-[18px]" />
             <span>下载</span>
             <span className="count-badge">{download.tasks.length}</span>
@@ -110,13 +136,16 @@ export default function App() {
       </header>
 
       <SearchBar
+        groups={search.displayGroups}
         loading={search.loading}
         mediaType={search.mediaType}
-        onMediaTypeChange={search.setMediaType}
+        onMediaTypeChange={(value) => search.setMediaType(value as 'image' | 'video' | 'all')}
+        onProbe={search.checkSource}
         onQueryChange={search.setQuery}
-        onSearch={() => search.search()}
+        onSearch={search.search}
         onSourcesChange={search.setSources}
         plugins={search.plugins}
+        probes={search.probes}
         query={search.query}
         sources={search.sources}
       />
@@ -132,24 +161,43 @@ export default function App() {
               </div>
               <p className="eyebrow">首次使用</p>
               <h2>连接素材平台，开始建立你的素材库</h2>
-              <p>配置至少一个平台的 API Key，即可统一搜索并下载图片和视频。</p>
+              <p>
+                大都会艺术馆、芝加哥艺术馆、Wikimedia 免密钥即可搜索；Unsplash / Pexels / Pixabay / Giphy / Flickr
+                需要粘贴一个免费 API Key。
+              </p>
               <button className="button-primary mt-5" onClick={() => setShowSettings(true)} type="button">
                 <SettingsIcon className="size-4" />
                 配置素材平台
               </button>
             </div>
           ) : (
-            <ThumbnailGrid
+            <ResultStream
+              dedupe={search.dedupe}
+              deduped={search.deduped}
               error={search.error || loadError}
-              warning={search.warning}
+              grouped={search.grouped}
+              groups={search.displayGroups}
               hasMore={search.hasMore}
-              items={search.results}
+              items={search.items}
               loading={search.loading}
+              noResultReason={search.noResultReason}
+              onDedupeChange={search.setDedupe}
+              onDownload={(item) => void beginDownload([item])}
+              onDownloadMany={(items) => void beginDownload(items)}
               onLoadMore={search.loadMore}
-              onDownload={(item) => beginDownload([item])}
-              onRetry={() => search.search(undefined, true)}
+              onOpenSettings={() => setShowSettings(true)}
+              onOrientationChange={search.setOrientation}
+              onProbe={search.checkSource}
+              onRetrySource={search.retrySource}
               onSelect={handleSelect}
+              onlySource={search.onlySource}
+              onOnlySourceChange={search.setOnlySource}
+              orientation={search.orientation}
+              plugins={search.plugins}
+              probes={search.probes}
+              searched={search.searched}
               selected={selected}
+              totalItems={search.totalItems}
             />
           )}
         </section>
@@ -163,44 +211,56 @@ export default function App() {
         )}
       </main>
 
-      {search.results.length > 0 && (
+      {search.items.length > 0 && (
         <footer className="status-bar">
           <span className="tabular-nums">
-            {selected.size > 0 ? `已选择 ${selected.size} 项` : `共找到 ${search.results.length} 项素材`}
+            {selected.size > 0 ? `已选择 ${selected.size} 项` : `共 ${search.totalItems} 项素材${search.deduped ? ` · 去重折叠 ${search.deduped} 项` : ''}`}
           </span>
-          <div className="flex-1" />
+          {notice && <span className="text-link text-warning truncate">{notice}</span>}
+          <span className="flex-1" />
           {selected.size > 0 && (
-            <button className="button-primary button-small" onClick={handleDownloadSelected} type="button">
-              <DownloadIcon className="size-4" />
-              下载选中
-            </button>
+            <>
+              <button className="text-link" onClick={() => setSelected(new Set())} type="button">取消选择</button>
+              <button className="button-primary button-small" onClick={handleDownloadSelected} type="button">
+                <DownloadIcon className="size-4" />
+                下载选中 {selected.size}
+              </button>
+            </>
           )}
-          {search.results.length > 0 && (
-            <button
-              className="button-secondary button-small"
-              onClick={() => beginDownload(search.results)}
-              type="button"
-            >
-              下载全部
-            </button>
-          )}
+          <button
+            className="button-secondary button-small"
+            onClick={() => void beginDownload(search.items)}
+            type="button"
+          >
+            <HistoryIcon className="size-4" />
+            下载本页 {Math.min(search.items.length, MAX_BATCH)}
+          </button>
         </footer>
       )}
 
       {showSettings && (
         <SettingsDialog
-          onClose={() => setShowSettings(false)}
-          onPluginsReload={search.loadPlugins}
+          onClose={() => { setShowSettings(false); void search.loadPlugins(); }}
+          onProbe={search.checkSource}
           onSave={updateAndSave}
+          plugins={search.plugins}
           settings={settings}
         />
       )}
       {showDownloads && (
         <DownloadPanel
-          onClear={download.clearDone}
+          concurrency={settings.maxConcurrentDownloads}
+          downloadDir={settings.downloadDir}
+          logInfo={history}
+          onCancel={download.cancel}
+          onClear={download.clearSettled}
           onClose={() => setShowDownloads(false)}
-          onOpenFolder={download.openInFolder}
-          onRemove={download.removeTask}
+          onOpenFolder={download.openFolder}
+          onOpenSettings={() => setShowSettings(true)}
+          onPause={download.pause}
+          onResume={download.resume}
+          onRetryFailed={() => void download.retryFailed(settings.downloadDir, search.query)}
+          stats={download.stats}
           tasks={download.tasks}
         />
       )}

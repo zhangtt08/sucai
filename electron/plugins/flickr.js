@@ -1,5 +1,7 @@
 const { SourcePlugin } = require('./base');
 const { downloadFile } = require('./utils');
+const { jsonFetch } = require('./http.cjs');
+const { SourceError } = require('../core/errors.cjs');
 
 const LICENSE_NAMES = {
   0: '保留所有权利',
@@ -29,18 +31,20 @@ class FlickrPlugin extends SourcePlugin {
       method: 'flickr.photos.search',
       api_key: this.key,
       text: query,
-      per_page: String(Math.min(perPage, 50)),
-      page: String(page),
+      per_page: String(Math.max(1, Math.min(perPage, 50))),
+      page: String(Math.max(1, page)),
       sort: 'relevance',
       extras: 'owner_name,license,url_sq,url_m,url_l,url_o,width_o,height_o',
       format: 'json',
       nojsoncallback: '1',
     });
-    const u = `https://api.flickr.com/services/rest/?${params.toString()}`;
-    const r = await fetch(u);
-    if (!r.ok) throw new Error(`请求失败（HTTP ${r.status}）`);
-    const d = await r.json();
-    if (d.stat !== 'ok') throw new Error(d.message || 'Flickr 返回错误');
+    const d = await jsonFetch(`https://api.flickr.com/services/rest/?${params.toString()}`, { source: this.name });
+    if (d.stat !== 'ok') {
+      // Flickr 把鉴权失败也回成 HTTP 200，只能按 code 判类别，否则用户看到的是无解的一句话。
+      const code = Number(d.code);
+      const kind = code === 100 ? 'unauthorized' : code === 111 ? 'not_found' : 'unknown';
+      throw new SourceError(kind, d.message || 'Flickr 返回错误', { source: this.name });
+    }
     return (d.photos?.photo || []).map((p) => {
       const license = LICENSE_NAMES[p.license] || 'Flickr 授权';
       return {
@@ -50,6 +54,7 @@ class FlickrPlugin extends SourcePlugin {
         author: p.ownername || '', authorUrl: p.owner ? `https://www.flickr.com/people/${p.owner}` : '',
         thumbnailUrl: p.url_sq || p.url_m || '', previewUrl: p.url_m || p.url_l || p.url_sq || '',
         downloadUrl: p.url_o || p.url_l || '',
+        pageUrl: p.owner ? `https://www.flickr.com/photos/${p.owner}/${p.id}` : '',
         width: Number(p.width_o) || 0, height: Number(p.height_o) || 0, fileSize: 0,
         tags: [],
         license,

@@ -1,13 +1,27 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// 只暴露白名单方法，不把 ipcRenderer 本体交给渲染层。
 contextBridge.exposeInMainWorld('electron', {
   search: (params) => ipcRenderer.invoke('search', params),
-  download: (item, destDir, taskId) => ipcRenderer.invoke('download', { item, destDir, taskId }),
-  onDownloadProgress: (cb) => {
+  onSearchSource: (cb) => {
     const h = (_e, d) => cb(d);
-    ipcRenderer.on('download-progress', h);
-    return () => ipcRenderer.removeListener('download-progress', h);
+    ipcRenderer.on('search-source', h);
+    return () => ipcRenderer.removeListener('search-source', h);
   },
+  probeSource: (name) => ipcRenderer.invoke('probe-source', { name }),
+  assetDetail: (source, sourceId) => ipcRenderer.invoke('asset-detail', { source, sourceId }),
+
+  downloadStart: (items, destDir, query) => ipcRenderer.invoke('download-start', { items, destDir, query }),
+  downloadPause: (batchId) => ipcRenderer.invoke('download-pause', batchId),
+  downloadResume: (batchId) => ipcRenderer.invoke('download-resume', batchId),
+  downloadCancel: (batchId) => ipcRenderer.invoke('download-cancel', batchId),
+  onDownloadEvent: (cb) => {
+    const h = (_e, d) => cb(d);
+    ipcRenderer.on('download-event', h);
+    return () => ipcRenderer.removeListener('download-event', h);
+  },
+  downloadLog: (params) => ipcRenderer.invoke('download-log', params),
+
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),

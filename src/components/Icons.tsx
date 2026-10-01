@@ -105,3 +105,27 @@ export function ClockIcon(props: IconProps) {
 export function RefreshIcon(props: IconProps) {
   return <Icon {...props}><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6.1 9A7 7 0 0 1 18.7 7L20 12M4 12l1.3 5A7 7 0 0 0 17.9 15" /></Icon>;
 }
+
+export function PauseIcon(props: IconProps) {
+  return <Icon {...props}><path d="M9 5v14M15 5v14" /></Icon>;
+}
+
+export function PlayIcon(props: IconProps) {
+  return <Icon {...props}><path d="M8 5.5v13l11-6.5-11-6.5Z" /></Icon>;
+}
+
+export function StopIcon(props: IconProps) {
+  return <Icon {...props}><rect x="6.5" y="6.5" width="11" height="11" rx="2" /></Icon>;
+}
+
+export function FilterIcon(props: IconProps) {
+  return <Icon {...props}><path d="M4 6h16M7 12h10M10 18h4" /></Icon>;
+}
+
+export function HistoryIcon(props: IconProps) {
+  return <Icon {...props}><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4.5V9H8" /><path d="M12 8v4.5l3 1.8" /></Icon>;
+}
+
+export function GroupIcon(props: IconProps) {
+  return <Icon {...props}><rect x="3.5" y="4" width="17" height="5" rx="2" /><rect x="3.5" y="12" width="10" height="8" rx="2" /></Icon>;
+}
