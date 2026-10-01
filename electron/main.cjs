@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const { initPluginRegistry, searchAll, downloadAsset, getRegisteredPlugins } = require('./plugins/registry');
 const { loadSettings, saveSettings } = require('./settings');
+const { createAgentApiServer, DEFAULT_PORT } = require('./agent-api.cjs');
 
 let mainWindow = null;
 
@@ -102,6 +103,15 @@ app.whenReady().then(async () => {
   const settings = loadSettings();
   initPluginRegistry(settings);
   createWindow(settings);
+  // Agent API：与 GUI 共用同一套插件与设置；端口被占用（如已独立运行）时静默跳过。
+  try {
+    const apiPort = Number(process.env.SUCAI_API_PORT) || DEFAULT_PORT;
+    const server = createAgentApiServer({ getSettings: loadSettings });
+    server.on('error', () => {}); // EADDRINUSE → 独立实例已在运行
+    server.listen(apiPort, '127.0.0.1', () => {
+      console.log(`[sucai-agent-api] listening on http://127.0.0.1:${apiPort}`);
+    });
+  } catch (_) {}
 });
 
 app.on('activate', () => {

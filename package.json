@@ -9,7 +9,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron . --dev\"",
-    "package": "npm run build && electron-builder --win"
+    "package": "npm run build && electron-builder --win",
+    "agent-api": "node electron/agent-api.cjs"
   },
   "license": "MIT",
   "dependencies": {},

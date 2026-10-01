@@ -50,3 +50,22 @@ Pipeline: renderer → IPC (`search` / `download`) → plugin registry → every
 ## 📄 License
 
 [MIT](LICENSE)
+
+## 🤖 Agent API
+
+A local HTTP API lets external agents use Sucai as a tool — standalone, no GUI needed:
+
+```bash
+npm run agent-api        # serves http://127.0.0.1:8391 (reuses keys saved by the GUI)
+```
+
+| Endpoint | Method | Body | Result |
+|---|---|---|---|
+| `/health` | GET | — | `{ok, tool, version}` |
+| `/api/sources` | GET | — | configured sources |
+| `/api/search` | POST | `{query, mediaType?, sources?, page?, perPage?}` | `{data: [items], warnings}` |
+| `/api/download` | POST | `{item, destDir?}` | `{filePath}` (item = one entry from `/api/search`) |
+
+Keyless sources (`met`, `artic`, `wikimedia`) work out of the box. Port override: `SUCAI_API_PORT`.
+
+## 📄 License

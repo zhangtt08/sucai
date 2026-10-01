@@ -47,3 +47,22 @@ resources/      应用图标
 ## 许可证
 
 [MIT](LICENSE)
+
+## 🤖 Agent API
+
+内置本地 HTTP 接口，可让你的 agent 把素材搜索/下载当 tool 调用——无需打开界面：
+
+```bash
+npm run agent-api        # 服务 http://127.0.0.1:8391（自动复用界面里保存的各平台 key）
+```
+
+| 路由 | 方法 | 请求体 | 返回 |
+|---|---|---|---|
+| `/health` | GET | — | `{ok, tool, version}` |
+| `/api/sources` | GET | — | 各平台配置状态 |
+| `/api/search` | POST | `{query, mediaType?, sources?, page?, perPage?}` | `{data: [素材列表], warnings}` |
+| `/api/download` | POST | `{item, destDir?}` | `{filePath}`（item 取自 `/api/search` 的某条结果） |
+
+`met` / `artic` / `wikimedia` 三源免 key 开箱即用。端口覆盖：`SUCAI_API_PORT`。
+
+## 许可证
