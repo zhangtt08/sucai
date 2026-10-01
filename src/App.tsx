@@ -5,6 +5,7 @@ import { PreviewPanel } from './components/PreviewPanel';
 import { SearchBar } from './components/SearchBar';
 import { SettingsDialog } from './components/SettingsDialog';
 import { ThumbnailGrid } from './components/ThumbnailGrid';
+import { WindowControls } from './components/WindowControls';
 import { useDownload } from './hooks/useDownload';
 import { useSearch } from './hooks/useSearch';
 import { useSettings } from './hooks/useSettings';
@@ -74,7 +75,10 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="app-header">
+      <header className="app-header drag-region" onDoubleClick={(e) => {
+        if ((e.target as HTMLElement).closest('button')) return;
+        void window.electron.windowControls.toggleMaximize();
+      }}>
         <div className="flex min-w-0 items-center gap-3">
           <BrandMark />
           <div className="min-w-0">
@@ -99,6 +103,9 @@ export default function App() {
             <SettingsIcon className="size-[18px]" />
             <span>设置</span>
           </button>
+          <div className="no-drag -mr-5 h-full">
+            <WindowControls />
+          </div>
         </div>
       </header>
 

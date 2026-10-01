@@ -779,3 +779,18 @@ figcaption {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── 自绘标题栏 ── */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag,
+.drag-region button,
+.drag-region a,
+.drag-region input {
+  -webkit-app-region: no-drag;
+}
+.win-btn-close:hover {
+  background: var(--danger) !important;
+  color: #fff !important;
+}

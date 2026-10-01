@@ -9,6 +9,13 @@ interface ElectronAPI {
   selectDirectory: () => Promise<string | null>;
   getPlugins: () => Promise<PluginInfo[]>;
   openInFolder: (filePath: string) => Promise<void>;
+  windowControls: {
+    minimize: () => Promise<void>;
+    toggleMaximize: () => Promise<boolean>;
+    close: () => Promise<void>;
+    isMaximized: () => Promise<boolean>;
+    onMaximizedChange: (callback: (maximized: boolean) => void) => () => void;
+  };
 }
 
 declare global { interface Window { electron: ElectronAPI; } }

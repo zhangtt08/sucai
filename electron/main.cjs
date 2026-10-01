@@ -16,6 +16,7 @@ function createWindow(settings = loadSettings()) {
     icon: path.join(__dirname, '..', 'resources', 'app-icon.png'),
     backgroundColor: settings.theme === 'dark' ? '#0e1422' : '#f5f7fb',
     autoHideMenuBar: true,
+    frame: false,
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -25,6 +26,11 @@ function createWindow(settings = loadSettings()) {
       preload: path.join(__dirname, 'preload.cjs'),
     },
   });
+
+  // 窗口控制（自绘标题栏）
+  for (const ev of ['maximize', 'unmaximize']) {
+    mainWindow.on(ev, () => mainWindow?.webContents.send('window:maximized', ev === 'maximize'));
+  }
 
   if (process.argv.includes('--dev')) {
     mainWindow.loadURL('http://localhost:5173');
@@ -96,6 +102,21 @@ ipcMain.handle('get-plugins', async () => {
 });
 
 ipcMain.handle('open-in-folder', async (_e, filePath) => { shell.showItemInFolder(filePath); });
+
+// ── 窗口控制（自绘标题栏）──
+
+ipcMain.handle('window:minimize', () => mainWindow?.minimize());
+ipcMain.handle('window:toggle-maximize', () => {
+  if (!mainWindow) return false;
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+    return false;
+  }
+  mainWindow.maximize();
+  return true;
+});
+ipcMain.handle('window:close', () => mainWindow?.close());
+ipcMain.handle('window:is-maximized', () => !!mainWindow?.isMaximized());
 
 // ── App ──
 
